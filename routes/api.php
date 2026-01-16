@@ -17,6 +17,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HeroSliderImageController;
 
 Route::post('/payments/gcash/create', [PaymentController::class, 'createGcashPayment']);
 
@@ -93,7 +94,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Landing Page Sections Management Routes
     Route::apiResource('landing-page-sections', LandingPageSectionController::class);
     Route::get('/landing-page-sections/active/list', [LandingPageSectionController::class, 'active']);
+    Route::get('/landing-page-sections/type/{type}', [LandingPageSectionController::class, 'getByType']);
     Route::put('/landing-page-sections/order/update', [LandingPageSectionController::class, 'updateOrder']);
+    Route::put('/landing-page-sections/{id}/publish', [LandingPageSectionController::class, 'publish']);
+    Route::put('/landing-page-sections/{id}/unpublish', [LandingPageSectionController::class, 'unpublish']);
+    
+    // Hero Slider Image Upload
+    Route::post('/hero-slider/upload-image', [HeroSliderImageController::class, 'upload']);
     
     // Customer Management Routes
     Route::get('/customers', [CustomerController::class, 'index']);

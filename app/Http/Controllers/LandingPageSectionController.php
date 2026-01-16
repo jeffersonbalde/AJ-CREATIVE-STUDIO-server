@@ -14,7 +14,30 @@ class LandingPageSectionController extends Controller
      */
     public function index(Request $request)
     {
-        $sections = LandingPageSection::orderBy('display_order')
+        $query = LandingPageSection::query();
+        
+        // Filter by section_type if provided
+        if ($request->has('section_type')) {
+            $query->where('section_type', $request->section_type);
+        }
+        
+        $sections = $query->orderBy('display_order')
+            ->orderBy('created_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'sections' => $sections,
+        ]);
+    }
+    
+    /**
+     * Get sections by type
+     */
+    public function getByType($type)
+    {
+        $sections = LandingPageSection::where('section_type', $type)
+            ->orderBy('display_order')
             ->orderBy('created_at')
             ->get();
 
@@ -29,7 +52,18 @@ class LandingPageSectionController extends Controller
      */
     public function active()
     {
+        $now = now();
+        
         $sections = LandingPageSection::where('is_active', true)
+            ->where('status', 'published')
+            ->where(function($q) use ($now) {
+                $q->whereNull('starts_at')
+                  ->orWhere('starts_at', '<=', $now);
+            })
+            ->where(function($q) use ($now) {
+                $q->whereNull('ends_at')
+                  ->orWhere('ends_at', '>=', $now);
+            })
             ->orderBy('display_order')
             ->orderBy('created_at')
             ->get();
@@ -46,14 +80,19 @@ class LandingPageSectionController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255|unique:landing_page_sections,title',
-            'source_type' => 'required|in:collection',
-            'source_value' => 'required|string|max:255',
+            'title' => 'required|string|max:255',
+            'section_type' => 'required|in:hero,product_grid,video,faq,testimonials,how_it_works,email_subscribe',
+            'source_type' => 'nullable|in:collection,tag',
+            'source_value' => 'nullable|string|max:255',
             'product_count' => 'nullable|integer|min:1|max:50',
             'display_style' => 'nullable|in:grid,slider',
             'is_active' => 'nullable|boolean',
             'display_order' => 'nullable|integer',
             'description' => 'nullable|string',
+            'config' => 'nullable|json',
+            'status' => 'nullable|in:draft,published,archived',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date|after:starts_at',
         ]);
 
         if ($validator->fails()) {
@@ -63,20 +102,42 @@ class LandingPageSectionController extends Controller
             ], 422);
         }
 
-        // Validate source_value - must be a valid collection
-        $collection = ProductCollection::where('slug', $request->source_value)->first();
-        if (!$collection) {
-            return response()->json([
-                'success' => false,
-                'errors' => ['source_value' => ['The selected collection does not exist.']],
-            ], 422);
+        // Validate source_value for product_grid sections - must be a valid collection
+        if ($request->section_type === 'product_grid' && $request->has('source_value')) {
+            $collection = ProductCollection::where('slug', $request->source_value)->first();
+            if (!$collection) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => ['source_value' => ['The selected collection does not exist.']],
+                ], 422);
+            }
         }
 
-        $section = LandingPageSection::create($request->all());
+        $data = $request->all();
+        
+        // Handle config field - decode if it's a JSON string
+        if (isset($data['config']) && is_string($data['config'])) {
+            try {
+                $decoded = json_decode($data['config'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $data['config'] = $decoded;
+                }
+            } catch (\Exception $e) {
+                // If decoding fails, keep the original value
+            }
+        }
+        
+        $section = LandingPageSection::create($data);
+        
+        // For hero sliders: Ensure only one is active/published at a time
+        if ($section->section_type === 'hero' && 
+            ($section->status === 'published' || $section->is_active)) {
+            $this->deactivateOtherHeroSliders($section->id);
+        }
 
         return response()->json([
             'success' => true,
-            'section' => $section,
+            'section' => $section->fresh(),
         ], 201);
     }
 
@@ -97,14 +158,19 @@ class LandingPageSectionController extends Controller
     public function update(Request $request, LandingPageSection $landingPageSection)
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'sometimes|required|string|max:255|unique:landing_page_sections,title,' . $landingPageSection->id,
-            'source_type' => 'sometimes|required|in:collection',
-            'source_value' => 'sometimes|required|string|max:255',
+            'title' => 'sometimes|required|string|max:255',
+            'section_type' => 'sometimes|required|in:hero,product_grid,video,faq,testimonials,how_it_works,email_subscribe',
+            'source_type' => 'nullable|in:collection,tag',
+            'source_value' => 'nullable|string|max:255',
             'product_count' => 'nullable|integer|min:1|max:50',
             'display_style' => 'nullable|in:grid,slider',
             'is_active' => 'nullable|boolean',
             'display_order' => 'nullable|integer',
             'description' => 'nullable|string',
+            'config' => 'nullable|json',
+            'status' => 'nullable|in:draft,published,archived',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date|after:starts_at',
         ]);
 
         if ($validator->fails()) {
@@ -114,8 +180,8 @@ class LandingPageSectionController extends Controller
             ], 422);
         }
 
-        // Validate source_value if provided - must be a valid collection
-        if ($request->has('source_value')) {
+        // Validate source_value for product_grid sections - must be a valid collection
+        if ($request->has('section_type') && $request->section_type === 'product_grid' && $request->has('source_value')) {
             $sourceValue = $request->source_value ?? $landingPageSection->source_value;
             $collection = ProductCollection::where('slug', $sourceValue)->first();
             if (!$collection) {
@@ -126,7 +192,34 @@ class LandingPageSectionController extends Controller
             }
         }
 
-        $landingPageSection->update($request->all());
+        $data = $request->all();
+        
+        // Handle config field - decode if it's a JSON string
+        if (isset($data['config']) && is_string($data['config'])) {
+            try {
+                $decoded = json_decode($data['config'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $data['config'] = $decoded;
+                }
+            } catch (\Exception $e) {
+                // If decoding fails, keep the original value
+            }
+        }
+        
+        // Check if this is a hero slider being published/activated
+        $isHeroBeingActivated = false;
+        if ($landingPageSection->section_type === 'hero') {
+            $newStatus = $data['status'] ?? $landingPageSection->status;
+            $newIsActive = isset($data['is_active']) ? $data['is_active'] : $landingPageSection->is_active;
+            $isHeroBeingActivated = ($newStatus === 'published' || $newIsActive);
+        }
+        
+        $landingPageSection->update($data);
+        
+        // For hero sliders: Ensure only one is active/published at a time
+        if ($isHeroBeingActivated) {
+            $this->deactivateOtherHeroSliders($landingPageSection->id);
+        }
 
         return response()->json([
             'success' => true,
@@ -174,5 +267,60 @@ class LandingPageSectionController extends Controller
             'success' => true,
             'message' => 'Section order updated successfully',
         ]);
+    }
+    
+    /**
+     * Publish a section
+     */
+    public function publish($id)
+    {
+        $section = LandingPageSection::findOrFail($id);
+        $section->status = 'published';
+        $section->published_at = now();
+        $section->save();
+        
+        // For hero sliders: Ensure only one is active/published at a time
+        if ($section->section_type === 'hero') {
+            $this->deactivateOtherHeroSliders($section->id);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'section' => $section->fresh(),
+            'message' => 'Section published successfully',
+        ]);
+    }
+    
+    /**
+     * Unpublish a section
+     */
+    public function unpublish($id)
+    {
+        $section = LandingPageSection::findOrFail($id);
+        $section->status = 'draft';
+        $section->save();
+        
+        return response()->json([
+            'success' => true,
+            'section' => $section->fresh(),
+            'message' => 'Section unpublished successfully',
+        ]);
+    }
+    
+    /**
+     * Deactivate other hero sliders (ensure only one hero slider is active)
+     */
+    private function deactivateOtherHeroSliders($currentSectionId)
+    {
+        LandingPageSection::where('section_type', 'hero')
+            ->where('id', '!=', $currentSectionId)
+            ->where(function($query) {
+                $query->where('status', 'published')
+                      ->orWhere('is_active', true);
+            })
+            ->update([
+                'status' => 'draft',
+                'is_active' => false,
+            ]);
     }
 }

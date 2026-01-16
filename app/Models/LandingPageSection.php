@@ -12,6 +12,7 @@ class LandingPageSection extends Model
 
     protected $fillable = [
         'title',
+        'section_type',
         'source_type',
         'source_value',
         'product_count',
@@ -19,12 +20,21 @@ class LandingPageSection extends Model
         'is_active',
         'display_order',
         'description',
+        'config',
+        'status',
+        'published_at',
+        'starts_at',
+        'ends_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'product_count' => 'integer',
         'display_order' => 'integer',
+        'config' => 'array',
+        'published_at' => 'datetime',
+        'starts_at' => 'datetime',
+        'ends_at' => 'datetime',
     ];
 
     /**
