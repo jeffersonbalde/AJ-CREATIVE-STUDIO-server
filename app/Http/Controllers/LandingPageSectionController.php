@@ -15,12 +15,12 @@ class LandingPageSectionController extends Controller
     public function index(Request $request)
     {
         $query = LandingPageSection::query();
-        
+
         // Filter by section_type if provided
         if ($request->has('section_type')) {
             $query->where('section_type', $request->section_type);
         }
-        
+
         $sections = $query->orderBy('display_order')
             ->orderBy('created_at')
             ->get();
@@ -30,7 +30,7 @@ class LandingPageSectionController extends Controller
             'sections' => $sections,
         ]);
     }
-    
+
     /**
      * Get sections by type
      */
@@ -53,16 +53,15 @@ class LandingPageSectionController extends Controller
     public function active()
     {
         $now = now();
-        
+
         $sections = LandingPageSection::where('is_active', true)
-            ->where('status', 'published')
-            ->where(function($q) use ($now) {
+            ->where(function ($q) use ($now) {
                 $q->whereNull('starts_at')
-                  ->orWhere('starts_at', '<=', $now);
+                    ->orWhere('starts_at', '<=', $now);
             })
-            ->where(function($q) use ($now) {
+            ->where(function ($q) use ($now) {
                 $q->whereNull('ends_at')
-                  ->orWhere('ends_at', '>=', $now);
+                    ->orWhere('ends_at', '>=', $now);
             })
             ->orderBy('display_order')
             ->orderBy('created_at')
@@ -102,10 +101,46 @@ class LandingPageSectionController extends Controller
             ], 422);
         }
 
+        // FAQ is a single permanent landing page block with a fixed heading.
+        if ($request->section_type === 'faq') {
+            $data = $request->all();
+            $data['title'] = 'Frequently Asked Questions';
+            $data['description'] = null;
+
+            // Handle config field - decode if it's a JSON string
+            if (isset($data['config']) && is_string($data['config'])) {
+                try {
+                    $decoded = json_decode($data['config'], true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $data['config'] = $decoded;
+                    }
+                } catch (\Exception $e) {
+                    // If decoding fails, keep the original value
+                }
+            }
+
+            $existingFaqSection = LandingPageSection::where('section_type', 'faq')->first();
+            if ($existingFaqSection) {
+                $existingFaqSection->update($data);
+
+                return response()->json([
+                    'success' => true,
+                    'section' => $existingFaqSection->fresh(),
+                ]);
+            }
+
+            $section = LandingPageSection::create($data);
+
+            return response()->json([
+                'success' => true,
+                'section' => $section->fresh(),
+            ], 201);
+        }
+
         // Validate source_value for product_grid sections - must be a valid collection
         if ($request->section_type === 'product_grid' && $request->has('source_value')) {
             $collection = ProductCollection::where('slug', $request->source_value)->first();
-            if (!$collection) {
+            if (! $collection) {
                 return response()->json([
                     'success' => false,
                     'errors' => ['source_value' => ['The selected collection does not exist.']],
@@ -114,7 +149,7 @@ class LandingPageSectionController extends Controller
         }
 
         $data = $request->all();
-        
+
         // Handle config field - decode if it's a JSON string
         if (isset($data['config']) && is_string($data['config'])) {
             try {
@@ -126,11 +161,11 @@ class LandingPageSectionController extends Controller
                 // If decoding fails, keep the original value
             }
         }
-        
+
         $section = LandingPageSection::create($data);
-        
+
         // For hero sliders: Ensure only one is active/published at a time
-        if ($section->section_type === 'hero' && 
+        if ($section->section_type === 'hero' &&
             ($section->status === 'published' || $section->is_active)) {
             $this->deactivateOtherHeroSliders($section->id);
         }
@@ -184,7 +219,7 @@ class LandingPageSectionController extends Controller
         if ($request->has('section_type') && $request->section_type === 'product_grid' && $request->has('source_value')) {
             $sourceValue = $request->source_value ?? $landingPageSection->source_value;
             $collection = ProductCollection::where('slug', $sourceValue)->first();
-            if (!$collection) {
+            if (! $collection) {
                 return response()->json([
                     'success' => false,
                     'errors' => ['source_value' => ['The selected collection does not exist.']],
@@ -193,7 +228,13 @@ class LandingPageSectionController extends Controller
         }
 
         $data = $request->all();
-        
+
+        // FAQ is a single permanent landing page block with a fixed heading.
+        if (($data['section_type'] ?? $landingPageSection->section_type) === 'faq') {
+            $data['title'] = 'Frequently Asked Questions';
+            $data['description'] = null;
+        }
+
         // Handle config field - decode if it's a JSON string
         if (isset($data['config']) && is_string($data['config'])) {
             try {
@@ -205,7 +246,7 @@ class LandingPageSectionController extends Controller
                 // If decoding fails, keep the original value
             }
         }
-        
+
         // Check if this is a hero slider being published/activated
         $isHeroBeingActivated = false;
         if ($landingPageSection->section_type === 'hero') {
@@ -213,9 +254,9 @@ class LandingPageSectionController extends Controller
             $newIsActive = isset($data['is_active']) ? $data['is_active'] : $landingPageSection->is_active;
             $isHeroBeingActivated = ($newStatus === 'published' || $newIsActive);
         }
-        
+
         $landingPageSection->update($data);
-        
+
         // For hero sliders: Ensure only one is active/published at a time
         if ($isHeroBeingActivated) {
             $this->deactivateOtherHeroSliders($landingPageSection->id);
@@ -232,6 +273,13 @@ class LandingPageSectionController extends Controller
      */
     public function destroy(LandingPageSection $landingPageSection)
     {
+        if ($landingPageSection->section_type === 'faq') {
+            return response()->json([
+                'success' => false,
+                'message' => 'FAQ is a permanent landing page section and cannot be deleted.',
+            ], 403);
+        }
+
         $landingPageSection->delete();
 
         return response()->json([
@@ -268,7 +316,7 @@ class LandingPageSectionController extends Controller
             'message' => 'Section order updated successfully',
         ]);
     }
-    
+
     /**
      * Publish a section
      */
@@ -278,19 +326,19 @@ class LandingPageSectionController extends Controller
         $section->status = 'published';
         $section->published_at = now();
         $section->save();
-        
+
         // For hero sliders: Ensure only one is active/published at a time
         if ($section->section_type === 'hero') {
             $this->deactivateOtherHeroSliders($section->id);
         }
-        
+
         return response()->json([
             'success' => true,
             'section' => $section->fresh(),
             'message' => 'Section published successfully',
         ]);
     }
-    
+
     /**
      * Unpublish a section
      */
@@ -299,14 +347,14 @@ class LandingPageSectionController extends Controller
         $section = LandingPageSection::findOrFail($id);
         $section->status = 'draft';
         $section->save();
-        
+
         return response()->json([
             'success' => true,
             'section' => $section->fresh(),
             'message' => 'Section unpublished successfully',
         ]);
     }
-    
+
     /**
      * Deactivate other hero sliders (ensure only one hero slider is active)
      */
@@ -314,9 +362,9 @@ class LandingPageSectionController extends Controller
     {
         LandingPageSection::where('section_type', 'hero')
             ->where('id', '!=', $currentSectionId)
-            ->where(function($query) {
+            ->where(function ($query) {
                 $query->where('status', 'published')
-                      ->orWhere('is_active', true);
+                    ->orWhere('is_active', true);
             })
             ->update([
                 'status' => 'draft',

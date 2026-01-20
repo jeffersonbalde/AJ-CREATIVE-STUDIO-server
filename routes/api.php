@@ -1,23 +1,22 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DownloadController;
+use App\Http\Controllers\HeroSliderImageController;
+use App\Http\Controllers\LandingPageSectionController;
 use App\Http\Controllers\LoginController;
-use App\Http\Controllers\ProductController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PayMayaWebhookController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductCollectionController;
-use App\Http\Controllers\LandingPageSectionController;
-use App\Http\Controllers\TestEmailController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SignupController;
-use App\Http\Controllers\PayMayaWebhookController;
-use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\TestEmailController;
 use App\Http\Controllers\TimeLogController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\DownloadController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\HeroSliderImageController;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/payments/gcash/create', [PaymentController::class, 'createGcashPayment']);
 
@@ -38,6 +37,7 @@ Route::get('/products', [ProductController::class, 'index']);
 
 // Public product collections with products (for storefront filters)
 Route::get('/public/product-collections', [ProductCollectionController::class, 'publicListWithProducts']);
+Route::get('/product-collections/slug/{slug}', [ProductCollectionController::class, 'showBySlug']);
 
 // Public route for active landing page sections
 Route::get('/landing-page-sections/active', [LandingPageSectionController::class, 'active']);
@@ -68,29 +68,29 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/me', [LoginController::class, 'me']);
     Route::post('/admin/logout', [LoginController::class, 'logout']);
-    
+
     // Customer authentication routes
     Route::get('/auth/me', [SignupController::class, 'me']);
-    
+
     // Phase 3: Logout
     Route::post('/auth/logout', [AuthController::class, 'logout']);
-    
+
     // Product Management Routes (Admin only)
     Route::get('/products/{id}/download', [ProductController::class, 'downloadFile']);
     Route::get('/products/categories/list', [ProductController::class, 'categories']);
     Route::apiResource('products', ProductController::class)->except(['index']);
-    
+
     // Product Category Management Routes
     Route::apiResource('product-categories', ProductCategoryController::class);
     Route::get('/product-categories/list', [ProductCategoryController::class, 'list']);
-    
+
     // Product Collection Management Routes
     Route::apiResource('product-collections', ProductCollectionController::class);
     Route::get('/product-collections/list', [ProductCollectionController::class, 'list']);
     Route::post('/product-collections/{id}/products', [ProductCollectionController::class, 'addProducts']);
     Route::delete('/product-collections/{id}/products', [ProductCollectionController::class, 'removeProducts']);
     Route::put('/product-collections/{id}/products/order', [ProductCollectionController::class, 'updateProductOrder']);
-    
+
     // Landing Page Sections Management Routes
     Route::apiResource('landing-page-sections', LandingPageSectionController::class);
     Route::get('/landing-page-sections/active/list', [LandingPageSectionController::class, 'active']);
@@ -98,25 +98,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/landing-page-sections/order/update', [LandingPageSectionController::class, 'updateOrder']);
     Route::put('/landing-page-sections/{id}/publish', [LandingPageSectionController::class, 'publish']);
     Route::put('/landing-page-sections/{id}/unpublish', [LandingPageSectionController::class, 'unpublish']);
-    
+
     // Hero Slider Image Upload
     Route::post('/hero-slider/upload-image', [HeroSliderImageController::class, 'upload']);
-    
+
     // Customer Management Routes
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::get('/customers/stats', [CustomerController::class, 'stats']);
-    
+
     // Customer Time Logging Routes
     Route::get('/customer-time-logs', [TimeLogController::class, 'index']);
     Route::get('/customers/{id}/time-logs', [TimeLogController::class, 'getCustomerLogs']);
-    
+
     // Order routes (authenticated)
     Route::get('/orders', [OrderController::class, 'index']);
     Route::put('/orders/{id}/status', [OrderController::class, 'updateStatus']);
-    
+
     // Customer download routes (for dashboard)
     Route::get('/downloads', [DownloadController::class, 'index']);
-    
+
     // Customer cart routes (authenticated customers only)
     Route::get('/cart', [CartController::class, 'index']);
     Route::post('/cart/save', [CartController::class, 'save']);

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProductCollection;
 use App\Models\Product;
+use App\Models\ProductCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -19,9 +19,9 @@ class ProductCollectionController extends Controller
 
         // Search functionality
         if ($request->has('search') && $request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('description', 'like', '%' . $request->search . '%');
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('description', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -117,14 +117,14 @@ class ProductCollectionController extends Controller
         }
 
         $data = $validator->validated();
-        
+
         // Generate slug if not provided
         if (empty($data['slug'])) {
             $baseSlug = Str::slug($data['name']);
             $slug = $baseSlug;
             $counter = 1;
             while (ProductCollection::where('slug', $slug)->exists()) {
-                $slug = $baseSlug . '-' . $counter;
+                $slug = $baseSlug.'-'.$counter;
                 $counter++;
             }
             $data['slug'] = $slug;
@@ -140,21 +140,51 @@ class ProductCollectionController extends Controller
     }
 
     /**
-     * Display the specified collection
+     * Display the specified collection by slug (public route)
      */
-    public function show($id)
+    public function showBySlug($slug)
     {
-        $collection = ProductCollection::with(['products' => function($query) {
-            $query->orderBy('collection_product.display_order')
-                  ->orderBy('collection_product.added_at', 'desc');
-        }])->find($id);
+        $collection = ProductCollection::where('slug', $slug)
+            ->where('is_active', true)
+            ->with(['products' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('collection_product.display_order')
+                    ->orderBy('collection_product.added_at', 'desc');
+            }])
+            ->first();
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
             ], 404);
         }
+
+        return response()->json([
+            'success' => true,
+            'collection' => $collection,
+        ]);
+    }
+
+    /**
+     * Display the specified collection
+     */
+    public function show($id)
+    {
+        $collection = ProductCollection::with(['products' => function ($query) {
+            $query->orderBy('collection_product.display_order')
+                ->orderBy('collection_product.added_at', 'desc');
+        }])->find($id);
+
+        if (! $collection) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Collection not found',
+            ], 404);
+        }
+
+        // Ensure products are loaded
+        $collection->load('products');
 
         return response()->json([
             'success' => true,
@@ -169,7 +199,7 @@ class ProductCollectionController extends Controller
     {
         $collection = ProductCollection::find($id);
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
@@ -177,10 +207,10 @@ class ProductCollectionController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255|unique:product_collections,name,' . $id,
-            'slug' => 'sometimes|string|max:255|unique:product_collections,slug,' . $id,
+            'name' => 'sometimes|required|string|max:255|unique:product_collections,name,'.$id,
+            'slug' => 'sometimes|string|max:255|unique:product_collections,slug,'.$id,
             'description' => 'nullable|string',
-            'display_order' => 'nullable|integer|min:0|unique:product_collections,display_order,' . $id,
+            'display_order' => 'nullable|integer|min:0|unique:product_collections,display_order,'.$id,
             'is_active' => 'nullable|boolean',
         ]);
 
@@ -193,14 +223,14 @@ class ProductCollectionController extends Controller
         }
 
         $data = $validator->validated();
-        
+
         // Generate slug if name changed and slug not provided
-        if (isset($data['name']) && $data['name'] !== $collection->name && !isset($data['slug'])) {
+        if (isset($data['name']) && $data['name'] !== $collection->name && ! isset($data['slug'])) {
             $baseSlug = Str::slug($data['name']);
             $slug = $baseSlug;
             $counter = 1;
             while (ProductCollection::where('slug', $slug)->where('id', '!=', $id)->exists()) {
-                $slug = $baseSlug . '-' . $counter;
+                $slug = $baseSlug.'-'.$counter;
                 $counter++;
             }
             $data['slug'] = $slug;
@@ -222,7 +252,7 @@ class ProductCollectionController extends Controller
     {
         $collection = ProductCollection::find($id);
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
@@ -244,7 +274,7 @@ class ProductCollectionController extends Controller
     {
         $collection = ProductCollection::find($id);
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
@@ -272,7 +302,7 @@ class ProductCollectionController extends Controller
                 $productId => [
                     'display_order' => $displayOrder + $index,
                     'added_at' => now(),
-                ]
+                ],
             ]);
         }
 
@@ -289,7 +319,7 @@ class ProductCollectionController extends Controller
     {
         $collection = ProductCollection::find($id);
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
@@ -324,7 +354,7 @@ class ProductCollectionController extends Controller
     {
         $collection = ProductCollection::find($id);
 
-        if (!$collection) {
+        if (! $collection) {
             return response()->json([
                 'success' => false,
                 'message' => 'Collection not found',
@@ -357,4 +387,3 @@ class ProductCollectionController extends Controller
         ]);
     }
 }
-
