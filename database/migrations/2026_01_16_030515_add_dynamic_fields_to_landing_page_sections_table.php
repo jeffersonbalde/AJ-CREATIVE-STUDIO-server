@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -19,10 +20,12 @@ return new class extends Migration
             $table->timestamp('starts_at')->nullable()->after('published_at');
             $table->timestamp('ends_at')->nullable()->after('starts_at');
         });
-        
+
         // Use raw SQL to modify existing columns (doesn't require doctrine/dbal)
-        \DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_type VARCHAR(255) NULL');
-        \DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_value VARCHAR(255) NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_type VARCHAR(255) NULL');
+            DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_value VARCHAR(255) NULL');
+        }
     }
 
     /**
@@ -33,9 +36,11 @@ return new class extends Migration
         Schema::table('landing_page_sections', function (Blueprint $table) {
             $table->dropColumn(['section_type', 'config', 'status', 'published_at', 'starts_at', 'ends_at']);
         });
-        
+
         // Use raw SQL to revert column changes
-        \DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_type VARCHAR(255) NOT NULL');
-        \DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_value VARCHAR(255) NOT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_type VARCHAR(255) NOT NULL');
+            DB::statement('ALTER TABLE landing_page_sections MODIFY COLUMN source_value VARCHAR(255) NOT NULL');
+        }
     }
 };

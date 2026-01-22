@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -64,11 +65,11 @@ class Product extends Model
      */
     public function getThumbnailImageUrlAttribute()
     {
-        if (!$this->thumbnail_image) {
+        if (! $this->thumbnail_image) {
             return null;
         }
-        
-        return asset('storage/' . $this->thumbnail_image);
+
+        return asset('storage/'.$this->thumbnail_image);
     }
 
     /**
@@ -76,12 +77,12 @@ class Product extends Model
      */
     public function getFeatureImagesUrlsAttribute()
     {
-        if (!$this->feature_images || !is_array($this->feature_images)) {
+        if (! $this->feature_images || ! is_array($this->feature_images)) {
             return [];
         }
-        
-        return array_map(function($image) {
-            return asset('storage/' . $image);
+
+        return array_map(function ($image) {
+            return asset('storage/'.$image);
         }, $this->feature_images);
     }
 
@@ -106,7 +107,7 @@ class Product extends Model
      */
     public function getAddedByAttribute()
     {
-        if (!$this->added_by_user_id || !$this->added_by_user_type) {
+        if (! $this->added_by_user_id || ! $this->added_by_user_type) {
             return null;
         }
 
@@ -124,7 +125,7 @@ class Product extends Model
      */
     public function getAddedByNameAttribute()
     {
-        if (!$this->added_by_user_id || !$this->added_by_user_type) {
+        if (! $this->added_by_user_id || ! $this->added_by_user_type) {
             return null;
         }
 
@@ -137,9 +138,11 @@ class Product extends Model
         // Fallback: load the user if not already loaded
         if ($this->added_by_user_type === 'admin') {
             $admin = Admin::find($this->added_by_user_id);
+
             return $admin ? ($admin->name ?? $admin->username) : null;
         } elseif ($this->added_by_user_type === 'personnel') {
             $personnel = Personnel::find($this->added_by_user_id);
+
             return $personnel ? $personnel->name : null;
         }
 
@@ -155,5 +158,10 @@ class Product extends Model
             ->withPivot('display_order', 'added_at')
             ->orderBy('collection_product.display_order')
             ->orderBy('collection_product.added_at', 'desc');
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
     }
 }

@@ -18,6 +18,10 @@ class DatabaseSeeder extends Seeder
             ProductCollectionSeeder::class,
             LandingPageSectionSeeder::class,
             ProductSeeder::class,
+            EmailSubscriberSeeder::class,
+            ProductReviewSeeder::class,
+            ContactMessageSeeder::class,
+            ProductFaqSeeder::class,
         ]);
     }
 }
